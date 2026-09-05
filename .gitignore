@@ -27,3 +27,8 @@ Thumbs.db
 # Video
 *.mp4
 *.mov
+
+venv/
+__pycache__/
+*.pyc
+clean.csv
