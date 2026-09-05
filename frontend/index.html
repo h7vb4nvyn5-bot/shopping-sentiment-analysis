@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>国内电商商品评论情感分析与可视化系统</title>
+    <link rel="stylesheet" href="css/style.css">
+    <!-- ECharts 核心库 -->
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <!-- ECharts 词云插件 -->
+    <script src="https://cdn.jsdelivr.net/npm/echarts-wordcloud@2.1.0/dist/echarts-wordcloud.min.js"></script>
+</head>
+<body>
+    <!-- 顶部导航栏 -->
+    <header class="header">
+        <div class="header-left">
+            <h1 class="header-title">电商商品评论情感分析 Dashboard</h1>
+            <span class="header-subtitle">基于 MongoDB + Spark + jieba + Flask + ECharts</span>
+        </div>
+        <div class="header-right">
+            <span class="status-dot" id="apiStatusDot"></span>
+            <span class="status-text" id="apiStatusText">连接中...</span>
+            <span class="header-date" id="currentDate"></span>
+        </div>
+    </header>
+
+    <main class="main-container">
+        <!-- ========== 第一区：KPI 卡片 ========== -->
+        <section class="kpi-section">
+            <div class="kpi-card kpi-total">
+                <div class="kpi-icon">📊</div>
+                <div class="kpi-content">
+                    <div class="kpi-label">总评论数</div>
+                    <div class="kpi-value" id="kpiTotal">--</div>
+                    <div class="kpi-unit">条</div>
+                </div>
+            </div>
+            <div class="kpi-card kpi-positive">
+                <div class="kpi-icon">👍</div>
+                <div class="kpi-content">
+                    <div class="kpi-label">正面评论</div>
+                    <div class="kpi-value" id="kpiPositive">--</div>
+                    <div class="kpi-unit">条</div>
+                </div>
+            </div>
+            <div class="kpi-card kpi-negative">
+                <div class="kpi-icon">👎</div>
+                <div class="kpi-content">
+                    <div class="kpi-label">负面评论</div>
+                    <div class="kpi-value" id="kpiNegative">--</div>
+                    <div class="kpi-unit">条</div>
+                </div>
+            </div>
+            <div class="kpi-card kpi-category">
+                <div class="kpi-icon">🏷️</div>
+                <div class="kpi-content">
+                    <div class="kpi-label">商品类别</div>
+                    <div class="kpi-value" id="kpiCategories">--</div>
+                    <div class="kpi-unit">个品类</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========== 第二区 + 第三区：饼图 + 柱状图 ========== -->
+        <section class="chart-row">
+            <div class="chart-card chart-half">
+                <div class="chart-header">
+                    <h2 class="chart-title">情感占比分布</h2>
+                    <span class="chart-tag">正面 vs 负面</span>
+                </div>
+                <div class="chart-body">
+                    <div id="pieChart" class="chart-container"></div>
+                </div>
+            </div>
+            <div class="chart-card chart-half">
+                <div class="chart-header">
+                    <h2 class="chart-title">各品类负面评论数量</h2>
+                    <span class="chart-tag">按品类排序</span>
+                </div>
+                <div class="chart-body">
+                    <div id="barChart" class="chart-container"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========== 第四区：词云 ========== -->
+        <section class="chart-row">
+            <div class="chart-card chart-full">
+                <div class="chart-header">
+                    <h2 class="chart-title">差评高频关键词 Top 50</h2>
+                    <span class="chart-tag" id="wordcloudTag">等待数据</span>
+                </div>
+                <div class="chart-body">
+                    <div id="wordcloudChart" class="chart-container chart-tall">
+                        <div class="placeholder-tip" id="wordcloudPlaceholder">
+                            <div class="placeholder-icon">⏳</div>
+                            <p>词云数据待 B 提供 top50_keywords.json 后接入</p>
+                            <p class="placeholder-sub">对应接口：/api/keywords（Day 5 完成）</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========== 第五区：评论搜索与列表 ========== -->
+        <section class="chart-row">
+            <div class="chart-card chart-full">
+                <div class="chart-header">
+                    <h2 class="chart-title">评论查询与筛选</h2>
+                    <span class="chart-tag">支持品类 / 情感 / 分页</span>
+                </div>
+                <div class="chart-body">
+                    <!-- 筛选栏 -->
+                    <div class="filter-bar">
+                        <div class="filter-item">
+                            <label class="filter-label">商品品类</label>
+                            <select class="filter-select" id="filterCat">
+                                <option value="">全部品类</option>
+                            </select>
+                        </div>
+                        <div class="filter-item">
+                            <label class="filter-label">情感标签</label>
+                            <select class="filter-select" id="filterLabel">
+                                <option value="">全部情感</option>
+                                <option value="1">正面</option>
+                                <option value="0">负面</option>
+                            </select>
+                        </div>
+                        <div class="filter-item">
+                            <label class="filter-label">关键词搜索</label>
+                            <div class="search-wrapper">
+                                <input type="text" class="filter-input" id="filterKeyword" placeholder="输入关键词搜索（待 /api/search 接入）" disabled>
+                                <button class="btn btn-search" id="btnSearch" disabled>搜索</button>
+                            </div>
+                        </div>
+                        <button class="btn btn-reset" id="btnReset">重置</button>
+                    </div>
+
+                    <!-- 评论列表 -->
+                    <div class="review-list-header">
+                        <span class="review-count">共 <strong id="reviewTotal">0</strong> 条评论</span>
+                        <span class="review-page-info">第 <span id="reviewCurrentPage">1</span> / <span id="reviewTotalPages">1</span> 页</span>
+                    </div>
+
+                    <div class="review-list" id="reviewList">
+                        <div class="loading-tip" id="reviewLoading">
+                            <div class="loading-spinner"></div>
+                            <p>加载评论中...</p>
+                        </div>
+                    </div>
+
+                    <!-- 分页 -->
+                    <div class="pagination" id="pagination">
+                        <button class="page-btn" id="btnPrevPage" disabled>上一页</button>
+                        <div class="page-numbers" id="pageNumbers"></div>
+                        <button class="page-btn" id="btnNextPage" disabled>下一页</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- 页脚 -->
+    <footer class="footer">
+        <p>大数据综合实践课程项目 | 国内电商商品评论情感分析与可视化 Web 系统</p>
+        <p class="footer-sub">数据集：online_shopping_10_cats（62,774 条，10 品类） | 技术栈：MongoDB + Spark + jieba + Flask + ECharts</p>
+    </footer>
+
+    <!-- JS 模块 -->
+    <script src="js/api.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
