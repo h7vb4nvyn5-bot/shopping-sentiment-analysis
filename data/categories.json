@@ -1,0 +1,52 @@
+[
+  {
+    "cat": "书籍",
+    "positive": 2100,
+    "negative": 1751
+  },
+  {
+    "cat": "平板",
+    "positive": 5000,
+    "negative": 5000
+  },
+  {
+    "cat": "手机",
+    "positive": 1165,
+    "negative": 1158
+  },
+  {
+    "cat": "水果",
+    "positive": 5000,
+    "negative": 5000
+  },
+  {
+    "cat": "洗发水",
+    "positive": 5000,
+    "negative": 5000
+  },
+  {
+    "cat": "热水器",
+    "positive": 474,
+    "negative": 100
+  },
+  {
+    "cat": "蒙牛",
+    "positive": 992,
+    "negative": 1041
+  },
+  {
+    "cat": "衣服",
+    "positive": 5000,
+    "negative": 5000
+  },
+  {
+    "cat": "计算机",
+    "positive": 1996,
+    "negative": 1996
+  },
+  {
+    "cat": "酒店",
+    "positive": 5000,
+    "negative": 5000
+  }
+]
