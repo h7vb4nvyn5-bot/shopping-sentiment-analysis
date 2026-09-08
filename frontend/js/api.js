@@ -107,8 +107,8 @@ async function getReviews(options = {}) {
  * @param {number} options.top - 返回前 N 个，默认 50
  * 返回：[{ name, value }, ...]
  *
- * 状态：等待 B 提供 top50_keywords.json 后，由 C 接入 Flask
- *       完成后取消下方注释即可使用
+ * 状态：C 尚未接入此接口；前端已实现降级策略——
+ *       接口不可用时自动读取 frontend/mock/top50_keywords.json（B 提供的数据）渲染
  */
 async function getKeywords(options = {}) {
     const params = {
@@ -127,8 +127,8 @@ async function getKeywords(options = {}) {
  * @param {number} options.page - 页码，默认 1
  * 返回：{ list: [{cat, label, review}], total }
  *
- * 状态：Day 6（09.08）由 C 完成，基于 MongoDB $text 全文索引
- *       完成后取消下方注释即可使用
+ * 状态：C 尚未接入此接口；前端已实现降级策略——
+ *       接口不可用时自动进入"本地演示模式"（用 /api/reviews 拉数据前端过滤）
  */
 async function searchReviews(options = {}) {
     const params = {

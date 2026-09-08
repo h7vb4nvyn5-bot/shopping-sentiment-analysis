@@ -90,6 +90,8 @@ function bindEvents() {
     // 品类筛选
     document.getElementById('filterCat').addEventListener('change', function (e) {
         AppState.filter.cat = e.target.value;
+        // 筛选变化时退出搜索模式
+        clearSearchMode();
         AppState.pagination.currentPage = 1;
         loadReviews();
     });
@@ -97,6 +99,8 @@ function bindEvents() {
     // 情感筛选
     document.getElementById('filterLabel').addEventListener('change', function (e) {
         AppState.filter.label = e.target.value;
+        // 筛选变化时退出搜索模式
+        clearSearchMode();
         AppState.pagination.currentPage = 1;
         loadReviews();
     });
@@ -108,6 +112,7 @@ function bindEvents() {
         document.getElementById('filterCat').value = '';
         document.getElementById('filterLabel').value = '';
         document.getElementById('filterKeyword').value = '';
+        clearSearchMode();
         loadReviews();
     });
 
@@ -126,18 +131,137 @@ function bindEvents() {
         }
     });
 
-    // 搜索按钮（待 /api/search 接入后启用）
+    // 搜索按钮
     document.getElementById('btnSearch').addEventListener('click', function () {
-        // 预留：搜索功能待 C 完成 /api/search 后启用
-        console.log('[Search] 功能待 /api/search 接口接入后启用');
+        handleSearch();
     });
 
     // 回车搜索
     document.getElementById('filterKeyword').addEventListener('keypress', function (e) {
         if (e.key === 'Enter') {
-            document.getElementById('btnSearch').click();
+            handleSearch();
         }
     });
+}
+
+// ========== 关键词搜索 ==========
+/**
+ * 搜索策略（与词云相同的降级模式）：
+ * 1. 优先调用后端 /api/search（C 接入后自动生效）
+ * 2. 接口未就绪时，回退"本地演示模式"：
+ *    用已就绪的 /api/reviews 拉取一批数据，在前端做关键词过滤，
+ *    保证搜索交互可以独立开发、调试和演示
+ */
+let localSearchCache = null; // { list: [...] } 本地演示模式的搜索结果缓存
+
+/**
+ * 退出搜索模式：清空搜索缓存和关键词
+ */
+function clearSearchMode() {
+    localSearchCache = null;
+    AppState.filter.keyword = '';
+}
+
+async function handleSearch() {
+    const keyword = document.getElementById('filterKeyword').value.trim();
+    AppState.filter.keyword = keyword;
+    AppState.pagination.currentPage = 1;
+
+    // 关键词为空 → 恢复正常列表
+    if (!keyword) {
+        localSearchCache = null;
+        loadReviews();
+        return;
+    }
+
+    // 第一步：尝试真实接口 /api/search
+    const result = await Api.searchReviews({
+        keyword: keyword,
+        cat: AppState.filter.cat,
+        page: AppState.pagination.currentPage,
+    });
+
+    if (result.success && result.data && Array.isArray(result.data.list)) {
+        localSearchCache = null;
+        const { list, total } = result.data;
+        AppState.pagination.total = total;
+        AppState.pagination.totalPages = Math.ceil(total / AppState.pagination.pageSize) || 1;
+        renderReviewList(list);
+        updatePaginationUI();
+        console.log('[Search] 数据来源：后端 /api/search');
+        return;
+    }
+
+    // 第二步：接口未就绪 → 本地演示模式（拉取一批数据前端过滤）
+    console.log('[Search] /api/search 未就绪，使用本地演示模式');
+    await loadLocalSearchDemo(keyword);
+}
+
+/**
+ * 本地演示模式：
+ * 从本地 mock 评论数据做关键词包含过滤（不依赖后端）
+ */
+async function loadLocalSearchDemo(keyword) {
+    const listEl = document.getElementById('reviewList');
+
+    // 显示加载状态
+    listEl.innerHTML = `
+        <div class="loading-tip">
+            <div class="loading-spinner"></div>
+            <p>搜索中...</p>
+        </div>
+    `;
+
+    const all = await ensureLocalReviews();
+
+    if (!all) {
+        listEl.innerHTML = `
+            <div class="empty-tip">
+                <div class="empty-icon">⚠️</div>
+                <p>搜索不可用</p>
+                <p class="placeholder-sub">本地演示数据加载失败，且后端未连接</p>
+            </div>
+        `;
+        return;
+    }
+
+    // 关键词过滤 + 品类/情感筛选
+    const lowerKeyword = keyword.toLowerCase();
+    let filtered = all.filter(item => {
+        const reviewText = (item.review || '').toLowerCase();
+        return reviewText.includes(lowerKeyword);
+    });
+
+    if (AppState.filter.cat) {
+        filtered = filtered.filter(item => item.cat === AppState.filter.cat);
+    }
+    if (AppState.filter.label !== '' && AppState.filter.label !== undefined) {
+        filtered = filtered.filter(item => String(item.label) === String(AppState.filter.label));
+    }
+
+    setDataModeTag('本地演示数据');
+    localSearchCache = { list: filtered };
+    AppState.pagination.total = filtered.length;
+    AppState.pagination.totalPages = Math.ceil(filtered.length / AppState.pagination.pageSize) || 1;
+
+    renderCurrentPageFromCache();
+    updatePaginationUI();
+    console.log(`[Search] 本地演示模式：mock 数据中匹配 ${filtered.length} 条`);
+}
+
+/**
+ * 从本地搜索缓存渲染当前页
+ */
+function renderCurrentPageFromCache() {
+    if (!localSearchCache) return;
+
+    const { list } = localSearchCache;
+    const { currentPage, pageSize } = AppState.pagination;
+
+    const start = (currentPage - 1) * pageSize;
+    const pageItems = list.slice(start, start + pageSize);
+
+    renderReviewList(pageItems);
 }
 
 // ========== 加载全部数据 ==========
@@ -156,7 +280,15 @@ async function loadAllData() {
         updateKPICards(statsResult.data);
         renderPieChart(statsResult.data);
     } else {
-        showError('KPI / 饼图', statsResult.error);
+        // 后端未连接 → 降级到本地演示数据
+        console.log('[KPI] 后端未连接，使用本地演示数据');
+        const mockStats = await loadLocalJson('statistics', 'mock/statistics.json');
+        if (mockStats) {
+            updateKPICards(mockStats);
+            renderPieChart(mockStats);
+        } else {
+            showError('KPI / 饼图', statsResult.error);
+        }
     }
 
     if (catResult.success) {
@@ -166,7 +298,17 @@ async function loadAllData() {
         // 更新品类数 KPI
         document.getElementById('kpiCategories').textContent = catResult.data.length;
     } else {
-        showError('柱状图 / 品类筛选', catResult.error);
+        // 后端未连接 → 降级到本地演示数据
+        console.log('[Categories] 后端未连接，使用本地演示数据');
+        const mockCats = await loadLocalJson('categories', 'mock/categories.json');
+        if (mockCats) {
+            AppState.cache.categories = mockCats;
+            renderBarChart(mockCats);
+            populateCategoryFilter(mockCats);
+            document.getElementById('kpiCategories').textContent = mockCats.length;
+        } else {
+            showError('柱状图 / 品类筛选', catResult.error);
+        }
     }
 
     // 加载评论列表
@@ -412,8 +554,15 @@ function renderBarChart(categories) {
     AppState.charts.bar.setOption(option);
 }
 
-// ========== 词云：差评关键词（预留） ==========
+// ========== 词云：差评关键词 ==========
+/**
+ * 词云数据加载策略：
+ * 1. 优先调用后端 /api/keywords 接口（C 接入后自动生效）
+ * 2. 接口未就绪时，回退读取本地 mock 数据（B 提供的 top50_keywords.json）
+ *    保证前端可以独立开发、调试和演示
+ */
 async function tryLoadWordcloud() {
+    // 第一步：尝试后端接口
     const result = await Api.getKeywords({ top: 50 });
 
     if (result.success && result.data && result.data.length > 0) {
@@ -421,10 +570,23 @@ async function tryLoadWordcloud() {
         renderWordcloud(result.data);
         document.getElementById('wordcloudTag').textContent = 'Top 50 已加载';
         document.getElementById('wordcloudPlaceholder').style.display = 'none';
-    } else {
-        // 接口未就绪，保持占位状态
-        console.log('[Wordcloud] /api/keywords 暂未就绪，保持占位');
+        console.log('[Wordcloud] 数据来源：后端 /api/keywords');
+        return;
     }
+
+    // 第二步：接口未就绪，回退到本地 mock 数据
+    const mockData = await loadLocalJson('keywords', 'mock/top50_keywords.json');
+    if (mockData && mockData.length > 0) {
+        AppState.cache.keywords = mockData;
+        renderWordcloud(mockData);
+        document.getElementById('wordcloudTag').textContent = 'Top 50 已加载（本地预览）';
+        document.getElementById('wordcloudPlaceholder').style.display = 'none';
+        console.log('[Wordcloud] 数据来源：本地 mock（/api/keywords 尚未接入）');
+        return;
+    }
+
+    // 兜底：都不可用时保持占位
+    console.log('[Wordcloud] 词云数据暂不可用，保持占位');
 }
 
 function renderWordcloud(keywords) {
@@ -494,10 +656,70 @@ function populateCategoryFilter(categories) {
     });
 }
 
+// ========== 本地 mock 数据工具 ==========
+/**
+ * 读取本地演示数据（演示模式使用）
+ * 优先级：内联 MOCK_DATA（js/mock-data.js，双击打开也能用）→ fetch mock/ 目录 JSON
+ * @param {string} key - MOCK_DATA 中的键名（statistics/categories/reviews/keywords）
+ * @param {string} filePath - 对应的 mock 目录文件路径（兜底用）
+ */
+async function loadLocalJson(key, filePath) {
+    // 优先使用内联数据（file:// 协议下 fetch 会被浏览器拦截）
+    if (window.MOCK_DATA && window.MOCK_DATA[key]) {
+        return window.MOCK_DATA[key];
+    }
+
+    // 兜底：尝试 fetch mock 目录 JSON
+    try {
+        const response = await fetch(filePath);
+        if (!response.ok) return null;
+        return await response.json();
+    } catch (error) {
+        console.warn(`[Mock] 本地文件 ${filePath} 加载失败:`, error.message);
+        return null;
+    }
+}
+
+/**
+ * 本地评论数据缓存（演示模式用，从 mock/reviews.json 读取）
+ */
+let localReviewsCache = null;
+
+async function ensureLocalReviews() {
+    if (localReviewsCache) return localReviewsCache;
+    const data = await loadLocalJson('reviews', 'mock/reviews.json');
+    if (data && Array.isArray(data) && data.length > 0) {
+        localReviewsCache = data;
+        return data;
+    }
+    return null;
+}
+
+/**
+ * 设置数据来源标识标签
+ */
+function setDataModeTag(text) {
+    const tag = document.getElementById('dataModeTag');
+    if (tag) {
+        if (text) {
+            tag.textContent = text;
+            tag.style.display = 'inline-block';
+        } else {
+            tag.style.display = 'none';
+        }
+    }
+}
+
 // ========== 评论列表加载 ==========
 async function loadReviews() {
     const listEl = document.getElementById('reviewList');
-    const loadingEl = document.getElementById('reviewLoading');
+
+    // 处于本地搜索模式时，分页从缓存取
+    if (localSearchCache) {
+        renderCurrentPageFromCache();
+        updatePaginationUI();
+        return;
+    }
 
     // 显示加载状态
     listEl.innerHTML = `
@@ -515,6 +737,7 @@ async function loadReviews() {
     });
 
     if (result.success) {
+        setDataModeTag('');
         const { list, total, page } = result.data;
         AppState.pagination.total = total;
         AppState.pagination.currentPage = page || AppState.pagination.currentPage;
@@ -523,6 +746,32 @@ async function loadReviews() {
         renderReviewList(list);
         updatePaginationUI();
     } else {
+        // 后端未连接 → 降级到本地演示数据
+        const mockList = await ensureLocalReviews();
+        if (mockList) {
+            setDataModeTag('本地演示数据');
+            let filtered = mockList;
+
+            if (AppState.filter.cat) {
+                filtered = filtered.filter(item => item.cat === AppState.filter.cat);
+            }
+            if (AppState.filter.label !== '' && AppState.filter.label !== undefined) {
+                filtered = filtered.filter(item => String(item.label) === String(AppState.filter.label));
+            }
+
+            AppState.pagination.total = filtered.length;
+            AppState.pagination.totalPages = Math.ceil(filtered.length / AppState.pagination.pageSize) || 1;
+
+            const start = (AppState.pagination.currentPage - 1) * AppState.pagination.pageSize;
+            const pageItems = filtered.slice(start, start + AppState.pagination.pageSize);
+
+            renderReviewList(pageItems);
+            updatePaginationUI();
+            console.log('[Reviews] 后端未连接，使用本地演示数据');
+            return;
+        }
+
+        setDataModeTag('');
         listEl.innerHTML = `
             <div class="empty-tip">
                 <div class="empty-icon">⚠️</div>
