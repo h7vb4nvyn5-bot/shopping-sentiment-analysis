@@ -149,6 +149,15 @@ const API_BASE_URL = 'http://127.0.0.1:5000';  // 修改为实际地址
 - **切换**：C 完成接口后，前端无需改代码，自动使用后端真实数据
 - **注意**：`mock-data.js` 中的 statistics/categories/reviews 为演示示例数字，接入后端后以数据库为准；keywords 为 B 真实产出
 
+### 5.4 Bug 修复记录（2026-09-09 联调反馈）
+- **Bug1：情感筛选无法与关键词搜索同时生效**
+  - 根因：搜索时未携带情感标签 `label` 参数
+  - 修复：`searchReviews` 增加 `label` 参数，搜索时同步传 `cat + label + keyword`
+  - 注意：**需要 C 在后端 `/api/search` 同步支持 `label` 参数**（与 `/api/reviews` 一致）
+- **Bug2：关键词搜索翻页后关键词丢失**
+  - 根因：翻页按钮走普通评论接口，未携带关键词
+  - 修复：`loadReviews` 统一入口——关键词非空时翻页也走搜索逻辑，关键词/品类/情感全部保留
+
 ## 六、前后端联调注意事项
 
 1. **CORS 跨域**：Flask 后端需启用 CORS（`flask-cors`），否则浏览器会拦截请求

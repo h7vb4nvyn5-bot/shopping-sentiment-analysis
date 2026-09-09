@@ -124,16 +124,17 @@ async function getKeywords(options = {}) {
  * @param {object} options - 搜索选项
  * @param {string} options.keyword - 搜索关键词（必填）
  * @param {string} options.cat - 品类筛选（可选）
+ * @param {string} options.label - 情感标签：1=正面, 0=负面（可选，Bug1修复：搜索时同时生效情感筛选）
  * @param {number} options.page - 页码，默认 1
  * 返回：{ list: [{cat, label, review}], total }
  *
- * 状态：C 尚未接入此接口；前端已实现降级策略——
- *       接口不可用时自动进入"本地演示模式"（用 /api/reviews 拉数据前端过滤）
+ * 注意：label 参数为 Bug1 修复新增，需要 C 在后端 /api/search 同步支持
  */
 async function searchReviews(options = {}) {
     const params = {
         keyword: options.keyword || '',
         cat: options.cat || '',
+        label: options.label !== undefined && options.label !== '' ? options.label : '',
         page: options.page || 1,
     };
     return apiRequest('/api/search', params);
