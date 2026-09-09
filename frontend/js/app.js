@@ -152,7 +152,7 @@ function bindEvents() {
  *    用已就绪的 /api/reviews 拉取一批数据，在前端做关键词过滤，
  *    保证搜索交互可以独立开发、调试和演示
  */
-let localSearchCache = null; // { list: [...] } 本地演示模式的搜索结果缓存
+let localSearchCache = null; // { keyword, list } 本地演示模式的搜索结果缓存
 
 /**
  * 退出搜索模式：清空搜索缓存和关键词
@@ -162,27 +162,51 @@ function clearSearchMode() {
     AppState.filter.keyword = '';
 }
 
+/**
+ * 搜索入口（统一）：设置关键词后走统一加载
+ * Bug1修复：搜索时同时携带 cat + label 情感筛选
+ * Bug2修复：翻页统一走 loadReviews → 关键词不丢失
+ */
 async function handleSearch() {
     const keyword = document.getElementById('filterKeyword').value.trim();
     AppState.filter.keyword = keyword;
     AppState.pagination.currentPage = 1;
+    await loadReviews();
+}
 
-    // 关键词为空 → 恢复正常列表
-    if (!keyword) {
-        localSearchCache = null;
-        loadReviews();
+/**
+ * 搜索结果加载（搜索与翻页共用）：
+ * 真实接口优先，未就绪降级本地过滤
+ */
+async function loadSearchResults() {
+    const keyword = AppState.filter.keyword;
+    const listEl = document.getElementById('reviewList');
+
+    // 本地演示模式下翻页：缓存命中直接分页渲染（避免重复过滤）
+    if (localSearchCache && localSearchCache.keyword === keyword) {
+        renderCurrentPageFromCache();
+        updatePaginationUI();
         return;
     }
 
-    // 第一步：尝试真实接口 /api/search
+    listEl.innerHTML = `
+        <div class="loading-tip">
+            <div class="loading-spinner"></div>
+            <p>搜索中...</p>
+        </div>
+    `;
+
+    // 第一步：尝试真实接口 /api/search（keyword + cat + label + page）
     const result = await Api.searchReviews({
         keyword: keyword,
         cat: AppState.filter.cat,
+        label: AppState.filter.label,
         page: AppState.pagination.currentPage,
     });
 
     if (result.success && result.data && Array.isArray(result.data.list)) {
         localSearchCache = null;
+        setDataModeTag('');
         const { list, total } = result.data;
         AppState.pagination.total = total;
         AppState.pagination.totalPages = Math.ceil(total / AppState.pagination.pageSize) || 1;
@@ -192,14 +216,14 @@ async function handleSearch() {
         return;
     }
 
-    // 第二步：接口未就绪 → 本地演示模式（拉取一批数据前端过滤）
+    // 第二步：接口未就绪 → 本地演示模式
     console.log('[Search] /api/search 未就绪，使用本地演示模式');
     await loadLocalSearchDemo(keyword);
 }
 
 /**
  * 本地演示模式：
- * 从本地 mock 评论数据做关键词包含过滤（不依赖后端）
+ * 从本地 mock 评论数据做 关键词 + 品类 + 情感 过滤（不依赖后端）
  */
 async function loadLocalSearchDemo(keyword) {
     const listEl = document.getElementById('reviewList');
@@ -225,7 +249,7 @@ async function loadLocalSearchDemo(keyword) {
         return;
     }
 
-    // 关键词过滤 + 品类/情感筛选
+    // 关键词过滤 + 品类/情感筛选（Bug1修复：本地模式也同时生效情感筛选）
     const lowerKeyword = keyword.toLowerCase();
     let filtered = all.filter(item => {
         const reviewText = (item.review || '').toLowerCase();
@@ -240,7 +264,7 @@ async function loadLocalSearchDemo(keyword) {
     }
 
     setDataModeTag('本地演示数据');
-    localSearchCache = { list: filtered };
+    localSearchCache = { keyword: keyword, list: filtered };
     AppState.pagination.total = filtered.length;
     AppState.pagination.totalPages = Math.ceil(filtered.length / AppState.pagination.pageSize) || 1;
 
@@ -713,6 +737,12 @@ function setDataModeTag(text) {
 // ========== 评论列表加载 ==========
 async function loadReviews() {
     const listEl = document.getElementById('reviewList');
+
+    // 关键词非空 → 走搜索分支（Bug2修复：翻页也保留关键词，因为翻页按钮统一调本函数）
+    if (AppState.filter.keyword) {
+        await loadSearchResults();
+        return;
+    }
 
     // 处于本地搜索模式时，分页从缓存取
     if (localSearchCache) {
