@@ -32,9 +32,6 @@ async function apiRequest(endpoint, params = {}) {
     try {
         const response = await fetch(url.toString(), {
             method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-            },
         });
 
         if (!response.ok) {
@@ -71,6 +68,24 @@ async function getStatistics() {
  */
 async function getCategories() {
     return apiRequest('/api/categories');
+}
+
+/**
+ * API 6: 获取各品类风险分析
+ * GET /api/category-risk
+ * 返回：
+ * [
+ *   {
+ *     cat,
+ *     total,
+ *     negative,
+ *     negative_rate
+ *   },
+ *   ...
+ * ]
+ */
+async function getCategoryRisk() {
+    return apiRequest('/api/category-risk');
 }
 
 /**
@@ -124,16 +139,16 @@ async function getKeywords(options = {}) {
  * @param {object} options - 搜索选项
  * @param {string} options.keyword - 搜索关键词（必填）
  * @param {string} options.cat - 品类筛选（可选）
+ * @param {number} options.label - 情感标签（可选，0负面，1正面）
  * @param {number} options.page - 页码，默认 1
  * 返回：{ list: [{cat, label, review}], total }
- *
- * 状态：C 尚未接入此接口；前端已实现降级策略——
- *       接口不可用时自动进入"本地演示模式"（用 /api/reviews 拉数据前端过滤）
+ 
  */
 async function searchReviews(options = {}) {
     const params = {
         keyword: options.keyword || '',
         cat: options.cat || '',
+        label: options.label ?? '',
         page: options.page || 1,
     };
     return apiRequest('/api/search', params);
@@ -168,6 +183,7 @@ function formatNumber(num) {
 window.Api = {
     getStatistics,
     getCategories,
+    getCategoryRisk,
     getReviews,
     getKeywords,
     searchReviews,

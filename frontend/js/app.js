@@ -32,6 +32,7 @@ const AppState = {
         pie: null,
         bar: null,
         wordcloud: null,
+        categoryRisk: null,
     },
 };
 
@@ -175,9 +176,12 @@ async function handleSearch() {
     }
 
     // 第一步：尝试真实接口 /api/search
+    AppState.filter.keyword = keyword;
+
     const result = await Api.searchReviews({
         keyword: keyword,
         cat: AppState.filter.cat,
+        label: AppState.filter.label,
         page: AppState.pagination.currentPage,
     });
 
@@ -266,11 +270,23 @@ function renderCurrentPageFromCache() {
 
 // ========== 加载全部数据 ==========
 async function loadAllData() {
-    // 并行加载统计和品类数据
-    const [statsResult, catResult] = await Promise.all([
+    // 并行加载统计、品类和品类风险数据
+    const [statsResult, catResult, riskResult] = await Promise.all([
         Api.getStatistics(),
         Api.getCategories(),
+        Api.getCategoryRisk(),
     ]);
+    console.log('[Category Risk] API返回结果：', riskResult);
+
+    if (
+        riskResult.success &&
+        riskResult.data &&
+        Array.isArray(riskResult.data)
+    ) {
+        renderCategoryRiskChart(riskResult.data);
+    } else {
+        console.error('[Category Risk] 数据加载失败');
+    }
 
     // 更新 API 连接状态
     updateApiStatus(statsResult.success);
@@ -440,6 +456,123 @@ function renderPieChart(data) {
     AppState.charts.pie.setOption(option);
 }
 
+function renderCategoryRiskChart(data) {
+    const chartDom = document.getElementById('categoryRiskChart');
+
+    if (!chartDom) {
+        console.error('[Category Risk] 找不到 #categoryRiskChart');
+        return;
+    }
+
+    // 如果之前已经创建过图表，先销毁
+    if (AppState.charts.categoryRisk) {
+        AppState.charts.categoryRisk.dispose();
+    }
+
+    // 初始化 ECharts
+    AppState.charts.categoryRisk = echarts.init(chartDom);
+
+    // 按负面率从高到低排序，取 TOP 5
+    const top5 = [...data]
+        .sort((a, b) => b.negative_rate - a.negative_rate)
+        .slice(0, 5);
+
+    // 提取品类名称
+    const categories = top5.map(item => item.cat);
+
+    // 提取负面率，并保留两位小数
+    const rates = top5.map(item =>
+        Number(item.negative_rate.toFixed(2))
+    );
+
+    const option = {
+        tooltip: {
+            trigger: 'axis',
+            axisPointer: {
+                type: 'shadow'
+            },
+            formatter: function (params) {
+                const item = params[0];
+
+                return `
+                    <strong>${item.name}</strong><br/>
+                    负面率：${item.value}%
+                `;
+            }
+        },
+
+        grid: {
+            left: '15%',
+            right: '10%',
+            top: '10%',
+            bottom: '10%'
+        },
+
+        xAxis: {
+            type: 'value',
+            name: '负面率 (%)',
+            axisLabel: {
+                formatter: '{value}%'
+            }
+        },
+
+        yAxis: {
+            type: 'category',
+            data: categories.reverse()
+        },
+
+        series: [
+            {
+                name: '负面率',
+                type: 'bar',
+                data: rates.reverse(),
+
+                label: {
+                    show: true,
+                    position: 'right',
+                    formatter: '{c}%'
+                }
+            }
+        ]
+    };
+
+    AppState.charts.categoryRisk.setOption(option);
+    // 点击柱状图后，自动筛选该品类的负面评论
+    AppState.charts.categoryRisk.on('click', function (params) {
+        const selectedCat = params.name;
+
+        console.log('[Category Risk] 点击品类：', selectedCat);
+
+        // 设置筛选条件
+        AppState.filter.cat = selectedCat;
+        AppState.filter.label = '0';
+        AppState.filter.keyword = '';
+
+        // 重置分页
+        AppState.pagination.currentPage = 1;
+
+        // 同步更新页面上的筛选框
+        const filterCat = document.getElementById('filterCat');
+        const filterLabel = document.getElementById('filterLabel');
+        const filterKeyword = document.getElementById('filterKeyword');
+
+        if (filterCat) {
+            filterCat.value = selectedCat;
+        }
+
+        if (filterLabel) {
+            filterLabel.value = '0';
+        }
+
+        if (filterKeyword) {
+            filterKeyword.value = '';
+        }
+
+        // 加载该品类的负面评论
+        loadReviews();
+    });
+}
+
 // ========== 柱状图：各品类负面评论 ==========
 function renderBarChart(categories) {
     // 按负面评论数降序排列
@@ -569,7 +702,10 @@ async function tryLoadWordcloud() {
         AppState.cache.keywords = result.data;
         renderWordcloud(result.data);
         document.getElementById('wordcloudTag').textContent = 'Top 50 已加载';
-        document.getElementById('wordcloudPlaceholder').style.display = 'none';
+        const placeholder = document.getElementById('wordcloudPlaceholder');
+        if (placeholder) {
+            placeholder.style.display = 'none';
+        }
         console.log('[Wordcloud] 数据来源：后端 /api/keywords');
         return;
     }
@@ -580,7 +716,10 @@ async function tryLoadWordcloud() {
         AppState.cache.keywords = mockData;
         renderWordcloud(mockData);
         document.getElementById('wordcloudTag').textContent = 'Top 50 已加载（本地预览）';
-        document.getElementById('wordcloudPlaceholder').style.display = 'none';
+        const placeholder = document.getElementById('wordcloudPlaceholder');
+        if (placeholder) {
+            placeholder.style.display = 'none';
+        }
         console.log('[Wordcloud] 数据来源：本地 mock（/api/keywords 尚未接入）');
         return;
     }
@@ -600,6 +739,7 @@ function renderWordcloud(keywords) {
             borderColor: COLORS.gridLine,
             textStyle: { color: COLORS.textPrimary },
         },
+
         series: [
             {
                 type: 'wordCloud',
@@ -614,6 +754,7 @@ function renderWordcloud(keywords) {
                 gridSize: 8,
                 drawOutOfBound: false,
                 layoutAnimation: true,
+
                 textStyle: {
                     fontFamily: 'sans-serif',
                     fontWeight: 'bold',
@@ -622,15 +763,18 @@ function renderWordcloud(keywords) {
                             '#4a9eff', '#00d4ff', '#00e676', '#ffab40',
                             '#ff5252', '#b388ff', '#ff80ab', '#64ffda',
                         ];
+
                         return palette[Math.floor(Math.random() * palette.length)];
                     },
                 },
+
                 emphasis: {
                     textStyle: {
                         textShadowBlur: 10,
                         textShadowColor: '#333',
                     },
                 },
+
                 data: keywords.map(item => ({
                     name: item.name,
                     value: item.value,
@@ -639,7 +783,60 @@ function renderWordcloud(keywords) {
         ],
     };
 
+    // 绘制词云
     AppState.charts.wordcloud.setOption(option);
+
+    // 点击关键词 → 自动筛选负面评论
+    AppState.charts.wordcloud.off('click');
+
+    AppState.charts.wordcloud.on('click', function (params) {
+        const selectedKeyword = params.name;
+
+        console.log('[Wordcloud] 点击关键词：', selectedKeyword);
+
+        // 设置关键词筛选条件
+        AppState.filter.keyword = selectedKeyword;
+
+        // 只查看负面评论
+        AppState.filter.label = '0';
+
+        // 保留当前品类
+        // 如果之前点击了“蒙牛”，这里仍然会保留蒙牛
+        AppState.filter.cat = AppState.filter.cat || '';
+
+        // 从第一页开始
+        AppState.pagination.currentPage = 1;
+
+        // 同步更新页面筛选框
+        const filterCat = document.getElementById('filterCat');
+        const filterLabel = document.getElementById('filterLabel');
+        const filterKeyword = document.getElementById('filterKeyword');
+
+        if (filterCat) {
+            filterCat.value = AppState.filter.cat;
+        }
+
+        if (filterLabel) {
+            filterLabel.value = '0';
+        }
+
+        if (filterKeyword) {
+            filterKeyword.value = selectedKeyword;
+        }
+
+        // 加载筛选后的评论
+        loadReviews();
+
+        // 自动滚动到评论列表
+        const reviewList = document.getElementById('reviewList');
+
+        if (reviewList) {
+            reviewList.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start'
+            });
+        }
+    });
 }
 
 // ========== 品类筛选下拉框填充 ==========
@@ -729,12 +926,30 @@ async function loadReviews() {
         </div>
     `;
 
-    const result = await Api.getReviews({
-        cat: AppState.filter.cat,
-        label: AppState.filter.label,
-        page: AppState.pagination.currentPage,
-        size: AppState.pagination.pageSize,
-    });
+    let result;
+
+    // 当前存在关键词搜索
+    if (AppState.filter.keyword) {
+
+        result = await Api.searchReviews({
+            keyword: AppState.filter.keyword,
+            cat: AppState.filter.cat,
+            label: AppState.filter.label,
+            page: AppState.pagination.currentPage,
+        });
+
+    } 
+    // 普通评论浏览
+    else {
+
+        result = await Api.getReviews({
+            cat: AppState.filter.cat,
+            label: AppState.filter.label,
+            page: AppState.pagination.currentPage,
+            size: AppState.pagination.pageSize,
+        });
+
+    }
 
     if (result.success) {
         setDataModeTag('');
