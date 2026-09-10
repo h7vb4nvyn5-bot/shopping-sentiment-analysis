@@ -694,3 +694,199 @@ body {
 ::-webkit-scrollbar-thumb:hover {
     background: var(--text-muted);
 }
+
+/* ============================================
+   品类详情弹窗
+   ============================================ */
+
+.category-modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.65);
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.category-modal.show {
+    display: flex;
+}
+
+.category-modal-content {
+    width: 100%;
+    max-width: 800px;
+    max-height: 85vh;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-hover);
+    overflow: hidden;
+    animation: categoryModalIn 0.25s ease;
+}
+
+@keyframes categoryModalIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px) scale(0.98);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* ---------- 弹窗标题 ---------- */
+
+.category-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+}
+
+.category-modal-header h2 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.category-modal-close {
+    width: 34px;
+    height: 34px;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 26px;
+    line-height: 1;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.category-modal-close:hover {
+    background: var(--bg-card-hover);
+    color: var(--text-primary);
+}
+
+/* ---------- 弹窗主体 ---------- */
+
+.category-modal-body {
+    padding: 24px;
+    max-height: calc(85vh - 72px);
+    overflow-y: auto;
+}
+
+/* ---------- 基础统计 ---------- */
+
+.category-detail-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 24px;
+}
+
+.detail-stat-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    text-align: center;
+}
+
+.detail-stat-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+}
+
+.detail-stat-value {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--accent-blue);
+}
+
+.detail-stat-value.positive {
+    color: var(--accent-green);
+}
+
+.detail-stat-value.negative {
+    color: var(--accent-red);
+}
+
+/* ---------- 详情内容 ---------- */
+
+.category-detail-section {
+    margin-top: 8px;
+}
+
+.category-detail-section h3 {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 14px;
+}
+
+/* ---------- 负面评论 ---------- */
+
+.detail-review-item {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-left: 3px solid var(--accent-red);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    color: var(--text-primary);
+    font-size: 13px;
+    line-height: 1.7;
+    transition: var(--transition);
+}
+
+.detail-review-item:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--border-light);
+    border-left-color: var(--accent-red);
+}
+
+.detail-empty {
+    padding: 30px;
+    text-align: center;
+    color: var(--text-muted);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+}
+
+/* ---------- 弹窗响应式 ---------- */
+
+@media (max-width: 700px) {
+    .category-detail-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .category-modal-content {
+        max-width: 95%;
+    }
+
+    .category-modal-body {
+        padding: 16px;
+    }
+}
+
+@media (max-width: 450px) {
+    .category-detail-stats {
+        grid-template-columns: 1fr;
+    }
+
+    .category-modal-header {
+        padding: 14px 16px;
+    }
+
+    .category-modal-header h2 {
+        font-size: 16px;
+    }
+}

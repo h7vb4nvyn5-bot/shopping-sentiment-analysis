@@ -537,40 +537,98 @@ function renderCategoryRiskChart(data) {
     };
 
     AppState.charts.categoryRisk.setOption(option);
-    // 点击柱状图后，自动筛选该品类的负面评论
-    AppState.charts.categoryRisk.on('click', function (params) {
+    // 点击柱状图后，获取该品类详细分析
+    AppState.charts.categoryRisk.on('click', async function (params) {
         const selectedCat = params.name;
 
         console.log('[Category Risk] 点击品类：', selectedCat);
 
-        // 设置筛选条件
-        AppState.filter.cat = selectedCat;
-        AppState.filter.label = '0';
-        AppState.filter.keyword = '';
+        // 使用项目统一的 API 请求函数
+        const result = await apiRequest(
+            '/api/category-detail',
+            {
+                cat: selectedCat
+            }
+        );
 
-        // 重置分页
-        AppState.pagination.currentPage = 1;
+        if (result.success) {
+            console.log('[Category Detail] 获取成功：', result.data);
 
-        // 同步更新页面上的筛选框
-        const filterCat = document.getElementById('filterCat');
-        const filterLabel = document.getElementById('filterLabel');
-        const filterKeyword = document.getElementById('filterKeyword');
+            const detail = result.data;
 
-        if (filterCat) {
-            filterCat.value = selectedCat;
+            // 设置标题
+            document.getElementById('categoryDetailTitle').textContent =
+                `${detail.cat}类商品分析`;
+
+            // 设置基础统计
+            document.getElementById('detailTotal').textContent =
+                detail.total;
+
+            document.getElementById('detailPositive').textContent =
+                detail.positive;
+
+            document.getElementById('detailNegative').textContent =
+                detail.negative;
+
+            document.getElementById('detailNegativeRate').textContent =
+                `${detail.negative_rate}%`;
+
+            // 生成代表性负面评论
+            const reviewsContainer =
+                document.getElementById('detailNegativeReviews');
+
+            if (detail.negative_reviews &&
+                detail.negative_reviews.length > 0) {
+
+                reviewsContainer.innerHTML =
+                    detail.negative_reviews.map(item => `
+                        <div class="detail-review-item">
+                            ${item.review}
+                        </div>
+                    `).join('');
+
+            } else {
+
+                reviewsContainer.innerHTML = `
+                    <div class="detail-empty">
+                        暂无代表性负面评论
+                    </div>
+                `;
+            }
+
+            // 显示弹窗
+            document.getElementById('categoryDetailModal').classList.add('show');
+
+        } else {
+            console.error(
+                '[Category Detail] 获取失败：',
+                result.error
+            );
         }
-
-        if (filterLabel) {
-            filterLabel.value = '0';
-        }
-
-        if (filterKeyword) {
-            filterKeyword.value = '';
-        }
-
-        // 加载该品类的负面评论
-        loadReviews();
     });
+
+    // 关闭品类详情弹窗
+    const categoryDetailClose =
+        document.getElementById('categoryDetailClose');
+
+    const categoryDetailModal =
+        document.getElementById('categoryDetailModal');
+
+    if (categoryDetailClose && categoryDetailModal) {
+
+        categoryDetailClose.addEventListener('click', function () {
+            categoryDetailModal.classList.remove('show');
+        });
+
+        // 点击弹窗外部区域关闭
+        categoryDetailModal.addEventListener('click', function (event) {
+
+            if (event.target === categoryDetailModal) {
+                categoryDetailModal.classList.remove('show');
+            }
+
+        });
+    }
 }
 
 // ========== 柱状图：各品类负面评论 ==========

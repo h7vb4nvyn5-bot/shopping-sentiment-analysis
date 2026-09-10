@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>国内电商商品评论情感分析与可视化系统</title>
-    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/style.css?v=2">
     <!-- ECharts 核心库 -->
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
     <!-- ECharts 词云插件 -->
@@ -172,6 +172,85 @@
             </div>
         </section>
     </main>
+
+    <!-- ========== 品类详情弹窗 ========== -->
+    <div class="category-modal" id="categoryDetailModal">
+        <div class="category-modal-content">
+
+            <!-- 弹窗标题 -->
+            <div class="category-modal-header">
+                <h2 id="categoryDetailTitle">品类详情</h2>
+                <button
+                    class="category-modal-close"
+                    id="categoryDetailClose"
+                    type="button"
+                >
+                    ×
+                </button>
+            </div>
+
+            <!-- 弹窗内容 -->
+            <div class="category-modal-body">
+
+                <!-- 基础统计 -->
+                <div class="category-detail-stats">
+
+                    <div class="detail-stat-card">
+                        <div class="detail-stat-label">评论总数</div>
+                        <div class="detail-stat-value" id="detailTotal">--</div>
+                    </div>
+
+                    <div class="detail-stat-card">
+                        <div class="detail-stat-label">正面评论</div>
+                        <div class="detail-stat-value positive" id="detailPositive">--</div>
+                    </div>
+
+                    <div class="detail-stat-card">
+                        <div class="detail-stat-label">负面评论</div>
+                        <div class="detail-stat-value negative" id="detailNegative">--</div>
+                    </div>
+
+                    <div class="detail-stat-card">
+                        <div class="detail-stat-label">负面率</div>
+                        <div class="detail-stat-value" id="detailNegativeRate">--</div>
+                    </div>
+
+                </div>
+
+                <!-- 代表性负面评论 -->
+                <div class="category-detail-section">
+                    <h3>👎 代表性负面评论</h3>
+
+                    <div id="detailNegativeReviews">
+                        <div class="detail-empty">
+                            暂无负面评论
+                        </div>
+                    </div>
+                </div>
+                <!-- 风险诊断 -->
+                <div class="category-detail-section category-diagnosis-section">
+
+                    <h3>🔍 风险诊断</h3>
+
+                    <div class="diagnosis-card">
+
+                        <div class="diagnosis-level">
+                            <span class="diagnosis-label">风险等级</span>
+                            <span id="diagnosisLevel" class="diagnosis-level-value">
+                                --
+                            </span>
+                        </div>
+
+                        <div id="diagnosisContent" class="diagnosis-content">
+                            暂无诊断信息
+                        </div>
+
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- 页脚 -->
     <footer class="footer">
